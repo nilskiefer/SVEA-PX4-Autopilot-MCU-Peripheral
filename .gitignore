@@ -1,0 +1,16 @@
+# ESP-IDF build artifacts
+build/
+managed_components/
+
+# IDE
+.vscode/
+compile_commands.json
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+
+.venv
