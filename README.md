@@ -1,15 +1,13 @@
 # SVEA-PX4-MODULE-ENCODER
 
-ESP32-C6 module workspace for SVEA encoder + PX4 bridge development.
-
-This repository is intentionally focused on environment setup first.
+ESP32-C6 firmware for SVEA encoder + PX4 Wi-Fi bridge.
 
 ## What Is Included
 
-- ESP-IDF project scaffold (`idf.py build` compatible)
-- VS Code Dev Container for ESP-IDF
-- `zsh` configured inside the container
-- Cross-platform flashing workflow (Linux/macOS/Windows)
+- ESP-IDF project for ESP32-C6 (`idf.py build` compatible)
+- UART <-> UDP bridge for PX4 MAVLink
+- Encoder edge counting on 2 GPIO inputs
+- Binary encoder telemetry UDP stream with CRC32
 
 ## Requirements
 
@@ -87,7 +85,55 @@ Set `idf.port` in VS Code user/workspace settings to your preferred value:
 - Windows direct USB: `COM3`
 - macOS host flashing is done with `esptool` from host terminal
 
-## Notes
+## Runtime Behavior
 
-- No MAVLink functionality is implemented yet.
-- Next step after environment validation: add UART transport and encoder task skeleton.
+- Uses `esp32-wifi-manager` (captive portal + credential persistence in NVS):
+  - Tries previously saved STA network first
+  - If STA is unavailable, starts AP + captive portal for Wi-Fi setup
+  - Default provisioning AP SSID: `SVEA-PX4-MODULE`
+  - Default provisioning AP password: `sveabridge`
+- Opens UDP port `14550` (MAVLink bridge):
+  - UDP -> UART: forwards datagrams to PX4 UART
+  - UART -> UDP: forwards PX4 MAVLink bytes back to last UDP sender
+- Publishes encoder packets to UDP port `14660` (same peer IP as MAVLink sender)
+
+## Wiring
+
+PX4 side (Clicker4 STM32F7):
+- `PA2` (`USART2_TX`) -> ESP32-C6 RX
+- `PA3` (`USART2_RX`) <- ESP32-C6 TX
+- Common GND
+- 3.3V logic only
+
+ESP32-C6 defaults in `main.c`:
+- UART TX GPIO `16` (`D6` on XIAO ESP32C6)
+- UART RX GPIO `17` (`D7` on XIAO ESP32C6)
+- Encoder GPIOs `4` (left), `5` (right)
+
+Change these macros in `main/main.c` if your board uses other pins.
+
+## PX4 Setup
+
+Use the USART2-mapped device as MAVLink serial endpoint (board-specific `/dev/ttySx`):
+
+```sh
+mavlink start -d /dev/ttyS1 -b 921600 -m onboard
+```
+
+On QGroundControl/companion side connect UDP to:
+- `10.10.0.1:14550` (when connected to provisioning AP)
+
+## Encoder Packet Format (UDP 14660)
+
+Packed struct `encoder_packet_t` (little-endian) from `main.c`:
+- `magic` (`0x434E4553`, "SENC")
+- `version`
+- `payload_len`
+- `seq`
+- `uptime_ms`
+- `left_count`, `right_count`
+- `left_delta`, `right_delta`
+- `left_mps`, `right_mps`
+- `linear_mps`
+- `yaw_rate_rps`
+- `crc32` (computed over all prior packet bytes)
