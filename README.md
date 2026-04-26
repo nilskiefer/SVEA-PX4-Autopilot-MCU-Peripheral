@@ -25,6 +25,7 @@ ESP32-C6 firmware for SVEA encoder + PX4 Wi-Fi bridge.
 idf.py set-target esp32c6
 idf.py build
 ```
+mavlink start -d /dev/ttyS1 -b 921600 -m onboard -f on px4
 
 Use a normal shell session (`zsh` or a new terminal tab). Do not run `source ./zsh` (that file does not exist).
 
