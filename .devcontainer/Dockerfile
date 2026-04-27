@@ -21,3 +21,5 @@ RUN export RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
  && echo 'source /opt/esp/idf/export.sh' >> /root/.zshrc \
  && echo "alias ll='ls -alF'" >> /root/.zshrc \
  && echo 'source /opt/esp/idf/export.sh' >> /root/.bashrc
+
+RUN python3 -m pip install --break-system-packages esptool

@@ -1,0 +1,12 @@
+services:
+  idf:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    working_dir: /workspaces/SVEA-PX4-MODULE-ENCODER
+    volumes:
+      - .:/workspaces/SVEA-PX4-MODULE-ENCODER
+    stdin_open: true
+    tty: true
+    init: true
+    command: zsh -lc "sleep infinity"

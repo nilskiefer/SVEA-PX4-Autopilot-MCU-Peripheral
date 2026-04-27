@@ -36,6 +36,26 @@ idf.py set-target esp32c6
 idf.py build
 ```
 
+`idf.py set-target esp32c6` is a one-time (or target-change) step.  
+Do not run `set-target` before every build because it regenerates `sdkconfig`.
+
+## Docker Compose (Terminal-Only)
+
+Build using compose without VS Code:
+
+```bash
+docker compose run --rm idf zsh -lc "idf.py build"
+```
+
+Interactive shell workflow:
+
+```bash
+docker compose up -d idf
+docker compose exec idf zsh -lc "idf.py set-target esp32c6"
+docker compose exec idf zsh -lc "idf.py build"
+docker compose down
+```
+
 Use a normal shell session (`zsh` or a new terminal tab). Do not run `source ./zsh` (that file does not exist).
 
 Regenerate MAVLink headers used by this module:
@@ -54,7 +74,6 @@ PYTHONPATH=components/mavlink_repo .venv/bin/python components/mavlink_repo/pyma
 Build inside the dev container:
 
 ```bash
-idf.py set-target esp32c6
 idf.py build
 ```
 
