@@ -1,0 +1,8 @@
+# Persist key project config across sdkconfig regeneration (e.g. `idf.py set-target`)
+# Partitioning
+# CONFIG_PARTITION_TABLE_SINGLE_APP is not set
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# Wi-Fi manager default AP credentials
+CONFIG_DEFAULT_AP_SSID="SVEA-PX4-MODULE"
+CONFIG_DEFAULT_AP_PASSWORD="sveabridge"
