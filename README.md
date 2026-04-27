@@ -7,7 +7,17 @@ ESP32-C6 firmware for SVEA encoder + PX4 Wi-Fi bridge.
 - ESP-IDF project for ESP32-C6 (`idf.py build` compatible)
 - UART <-> UDP bridge for PX4 MAVLink
 - Encoder edge counting on 2 GPIO inputs
-- Binary encoder telemetry UDP stream with CRC32
+- Encoder MAVLink `ODOMETRY` injection into PX4 UART
+
+## Source Layout
+
+- `main/main.c`: startup, Wi-Fi manager callbacks, task orchestration
+- `main/bridge_io.c`: UART/UDP bridge and runtime stats
+- `main/encoder.c`: GPIO ISR edge counting and wheel-kinematics computation
+- `main/mavlink_odometry.c`: MAVLink `ODOMETRY` packaging via generated C library API
+- `main/svea_config.h`: pin/baud/kinematics configuration macros
+- `components/mavlink`: generated MAVLink C headers used for packing/transmission
+- `components/mavlink_repo`: upstream MAVLink repo clone (message definitions + `pymavlink` generator)
 
 ## Requirements
 
@@ -25,9 +35,17 @@ ESP32-C6 firmware for SVEA encoder + PX4 Wi-Fi bridge.
 idf.py set-target esp32c6
 idf.py build
 ```
-mavlink start -d /dev/ttyS1 -b 921600 -m onboard -f on px4
 
 Use a normal shell session (`zsh` or a new terminal tab). Do not run `source ./zsh` (that file does not exist).
+
+Regenerate MAVLink headers used by this module:
+
+```bash
+PYTHONPATH=components/mavlink_repo .venv/bin/python components/mavlink_repo/pymavlink/tools/mavgen.py \
+  --lang C --wire-protocol 2.0 \
+  --output components/mavlink \
+  components/mavlink_repo/message_definitions/v1.0/common.xml
+```
 
 ## Flashing
 
@@ -96,7 +114,7 @@ Set `idf.port` in VS Code user/workspace settings to your preferred value:
 - Opens UDP port `14550` (MAVLink bridge):
   - UDP -> UART: forwards datagrams to PX4 UART
   - UART -> UDP: forwards PX4 MAVLink bytes back to last UDP sender
-- Publishes encoder packets to UDP port `14660` (same peer IP as MAVLink sender)
+- Publishes encoder-derived MAVLink `ODOMETRY` into PX4 UART at 50 Hz
 
 ## Wiring
 
@@ -106,35 +124,65 @@ PX4 side (Clicker4 STM32F7):
 - Common GND
 - 3.3V logic only
 
-ESP32-C6 defaults in `main.c`:
+ESP32-C6 defaults in `main/svea_config.h`:
 - UART TX GPIO `16` (`D6` on XIAO ESP32C6)
 - UART RX GPIO `17` (`D7` on XIAO ESP32C6)
 - Encoder GPIOs `4` (left), `5` (right)
 
-Change these macros in `main/main.c` if your board uses other pins.
+Change these macros in `main/svea_config.h` if your board uses other pins.
 
 ## PX4 Setup
 
-Use the USART2-mapped device as MAVLink serial endpoint (board-specific `/dev/ttySx`):
+Use the USART2-mapped device as MAVLink serial endpoint (board-specific `/dev/ttySx`) from PX4 NSH:
 
 ```sh
-mavlink start -d /dev/ttyS1 -b 921600 -m onboard
+mavlink start -d /dev/ttyS1 -b 921600 -m onboard -f
+```
+
+Verify link state:
+
+```sh
+mavlink status
+```
+
+Verify odometry messages are entering PX4 uORB (topic name depends on PX4 version/build):
+
+```sh
+listener vehicle_odometry 5
+listener vehicle_visual_odometry 5
 ```
 
 On QGroundControl/companion side connect UDP to:
 - `10.10.0.1:14550` (when connected to provisioning AP)
 
-## Encoder Packet Format (UDP 14660)
+## Encoder to PX4 Integration
 
-Packed struct `encoder_packet_t` (little-endian) from `main.c`:
-- `magic` (`0x434E4553`, "SENC")
-- `version`
-- `payload_len`
-- `seq`
-- `uptime_ms`
-- `left_count`, `right_count`
-- `left_delta`, `right_delta`
-- `left_mps`, `right_mps`
-- `linear_mps`
-- `yaw_rate_rps`
-- `crc32` (computed over all prior packet bytes)
+Encoder ticks are processed on ESP32 and emitted as MAVLink `ODOMETRY` on the same UART already used for PX4 MAVLink input.
+
+- Message: `ODOMETRY` (ID `331`, MAVLink 2 framing)
+- Estimator type: `MAV_ESTIMATOR_TYPE_NAIVE`
+- Velocity frame: `MAV_FRAME_BODY_FRD`
+- Encoded velocity:
+  - `vx = linear_mps`
+  - `vy = 0`
+  - `vz = 0`
+  - `yawspeed = yaw_rate_rps`
+
+Pose fields are intentionally published as `NaN` so PX4 treats this as velocity-only odometry input.
+
+## Encoder Emulation (No Hardware Encoder Needed)
+
+In `main/svea_config.h`:
+
+- Set `ENCODER_EMULATION_ENABLE` to `1`
+- Tune:
+  - `ENCODER_EMU_LINEAR_MPS`
+  - `ENCODER_EMU_YAW_RATE_RPS`
+
+When enabled, GPIO ISR counting is disabled and synthetic wheel ticks are generated every publish period.  
+These synthetic ticks go through the exact same pipeline as real ticks:
+
+1. tick counters
+2. wheel kinematics
+3. MAVLink `ODOMETRY` packing
+4. UART TX into PX4
