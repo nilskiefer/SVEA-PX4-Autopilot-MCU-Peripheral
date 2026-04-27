@@ -23,5 +23,12 @@ typedef struct {
     volatile uint32_t udp_to_uart_bytes;
     volatile uint32_t uart_to_udp_pkts;
     volatile uint32_t uart_to_udp_bytes;
+    volatile uint32_t uart_to_udp_drop_no_peer_pkts;
+    volatile uint32_t uart_to_udp_drop_no_peer_bytes;
+    volatile uint32_t uart_mavlink_frames;
+    volatile uint32_t uart_mavlink_heartbeats;
     volatile uint32_t encoder_to_px4_pkts;
+
+    uint32_t last_waiting_peer_log_ms;
+    uint32_t last_no_peer_drop_log_ms;
 } bridge_state_t;
