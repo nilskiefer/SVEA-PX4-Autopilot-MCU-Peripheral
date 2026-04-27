@@ -23,6 +23,7 @@ typedef struct {
 static encoder_task_state_t s_encoder_task_state;
 static bridge_state_t *s_state = NULL;
 
+#if ENCODER_EMULATION_ENABLE
 static void encoder_emulate_ticks(bridge_state_t *state, encoder_task_state_t *task, float meters_per_tick, float dt_s)
 {
     const float left_mps = ENCODER_EMU_LINEAR_MPS + (ENCODER_EMU_YAW_RATE_RPS * ENCODER_WHEELBASE_M * 0.5f);
@@ -42,6 +43,7 @@ static void encoder_emulate_ticks(bridge_state_t *state, encoder_task_state_t *t
     state->right_ticks += right_tick_delta;
     portEXIT_CRITICAL(&state->encoder_lock);
 }
+#endif
 
 static void IRAM_ATTR encoder_gpio_isr(void *arg)
 {
