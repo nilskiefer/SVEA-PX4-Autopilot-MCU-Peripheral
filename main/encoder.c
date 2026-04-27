@@ -6,14 +6,14 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/task.h"
-#include "mavlink_odometry.h"
+#include "mavlink_wheel_distance.h"
 #include "svea_common.h"
 #include "svea_config.h"
 #include "bridge_io.h"
 
 typedef struct {
     bridge_state_t *state;
-    uint32_t seq;
+    uint32_t emulate_start_ms;
     int32_t prev_left;
     int32_t prev_right;
     float emulate_left_frac_ticks;
@@ -24,10 +24,27 @@ static encoder_task_state_t s_encoder_task_state;
 static bridge_state_t *s_state = NULL;
 
 #if ENCODER_EMULATION_ENABLE
+static void encoder_emulate_profile(float t_s, float *linear_mps, float *yaw_rate_rps)
+{
+    const float two_pi = 2.0f * (float)M_PI;
+    /* Hardcoded dynamic pattern for bringup confidence:
+     * - forward/reverse transitions
+     * - varying yaw
+     * - multiple frequencies to stress packet path
+     */
+    *linear_mps = 0.70f * sinf(two_pi * 0.08f * t_s) + 0.18f * sinf(two_pi * 0.27f * t_s);
+    *yaw_rate_rps = 0.85f * sinf(two_pi * 0.13f * t_s + 0.9f);
+}
+
 static void encoder_emulate_ticks(bridge_state_t *state, encoder_task_state_t *task, float meters_per_tick, float dt_s)
 {
-    const float left_mps = ENCODER_EMU_LINEAR_MPS + (ENCODER_EMU_YAW_RATE_RPS * ENCODER_WHEELBASE_M * 0.5f);
-    const float right_mps = ENCODER_EMU_LINEAR_MPS - (ENCODER_EMU_YAW_RATE_RPS * ENCODER_WHEELBASE_M * 0.5f);
+    const float t_s = (float)(now_ms() - task->emulate_start_ms) * 0.001f;
+    float linear_mps = 0.0f;
+    float yaw_rate_rps = 0.0f;
+    encoder_emulate_profile(t_s, &linear_mps, &yaw_rate_rps);
+
+    const float left_mps = linear_mps + (yaw_rate_rps * ENCODER_WHEELBASE_M * 0.5f);
+    const float right_mps = linear_mps - (yaw_rate_rps * ENCODER_WHEELBASE_M * 0.5f);
 
     const float left_tick_delta_f = (left_mps * dt_s) / (meters_per_tick * ENCODER_SPEED_SCALE) + task->emulate_left_frac_ticks;
     const float right_tick_delta_f = (right_mps * dt_s) / (meters_per_tick * ENCODER_SPEED_SCALE) + task->emulate_right_frac_ticks;
@@ -63,7 +80,7 @@ void encoder_gpio_init(bridge_state_t *state)
     s_state = state;
 
 #if ENCODER_EMULATION_ENABLE
-    ESP_LOGW(SVEA_TAG, "Encoder emulation enabled: GPIO ISR disabled");
+    ESP_LOGW(SVEA_TAG, "Encoder emulation enabled: GPIO ISR disabled (hardcoded dynamic profile)");
     return;
 #endif
 
@@ -91,6 +108,7 @@ void encoder_publish_task(void *arg)
     const float dt_s = (float)ENCODER_PUBLISH_MS / 1000.0f;
     encoder_task_state_t *task = &s_encoder_task_state;
     task->state = state;
+    task->emulate_start_ms = now_ms();
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(ENCODER_PUBLISH_MS));
@@ -111,25 +129,24 @@ void encoder_publish_task(void *arg)
         task->prev_left = left;
         task->prev_right = right;
 
-        const float left_mps = ((float)d_left * meters_per_tick / dt_s) * ENCODER_SPEED_SCALE;
-        const float right_mps = ((float)d_right * meters_per_tick / dt_s) * ENCODER_SPEED_SCALE;
-        const float linear_mps = 0.5f * (left_mps + right_mps);
-        const float yaw_rate = (left_mps - right_mps) / ENCODER_WHEELBASE_M;
+        (void)d_left;
+        (void)d_right;
 
-        mavlink_odometry_sample_t sample = {
+        const double left_distance_m = (double)left * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
+        const double right_distance_m = (double)right * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
+
+        mavlink_wheel_distance_sample_t sample = {
             .time_usec = (uint64_t)now_ms() * 1000ULL,
-            .reset_counter = 0,
-            .linear_mps = linear_mps,
-            .yaw_rate_rps = yaw_rate,
+            .left_distance_m = left_distance_m,
+            .right_distance_m = right_distance_m,
         };
 
         if (xSemaphoreTake(state->uart_tx_lock, portMAX_DELAY) != pdTRUE) {
             ESP_LOGE(SVEA_TAG, "uart tx lock failed");
             abort();
         }
-        int written = mavlink_odometry_send_uart(
+        int written = mavlink_wheel_distance_send_uart(
             BRIDGE_UART_NUM,
-            (uint8_t)(task->seq++ & 0xFF),
             ENCODER_MAV_SYS_ID,
             ENCODER_MAV_COMP_ID,
             &sample);
@@ -139,7 +156,7 @@ void encoder_publish_task(void *arg)
         }
 
         if (written <= 0) {
-            ESP_LOGE(SVEA_TAG, "Failed to publish encoder odometry to PX4");
+            ESP_LOGE(SVEA_TAG, "Failed to publish wheel distance over MAVLink");
             abort();
         }
 

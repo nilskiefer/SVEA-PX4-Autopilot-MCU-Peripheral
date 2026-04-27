@@ -25,10 +25,10 @@
 
 /* Set to 1 to bypass GPIO encoder edges and inject synthetic wheel ticks. */
 #define ENCODER_EMULATION_ENABLE 1
-/* Target kinematics for synthetic encoder data when emulation is enabled. */
-#define ENCODER_EMU_LINEAR_MPS 0.60f
-#define ENCODER_EMU_YAW_RATE_RPS 0.35f
+/* Emulation motion profile is intentionally hardcoded in encoder.c for
+ * communication/integration bringup validation.
+ */
 
 /* MAVLink identity of encoder source injected towards PX4. */
 #define ENCODER_MAV_SYS_ID 42
-#define ENCODER_MAV_COMP_ID 197 /* MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY */
+#define ENCODER_MAV_COMP_ID 197 /* Encoder source component ID */

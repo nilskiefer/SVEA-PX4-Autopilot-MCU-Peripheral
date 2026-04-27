@@ -7,14 +7,14 @@ ESP32-C6 firmware for SVEA encoder + PX4 Wi-Fi bridge.
 - ESP-IDF project for ESP32-C6 (`idf.py build` compatible)
 - UART <-> UDP bridge for PX4 MAVLink
 - Encoder edge counting on 2 GPIO inputs
-- Encoder MAVLink `ODOMETRY` injection into PX4 UART
+- Encoder MAVLink `WHEEL_DISTANCE` injection into PX4 UART
 
 ## Source Layout
 
 - `main/main.c`: startup, Wi-Fi manager callbacks, task orchestration
 - `main/bridge_io.c`: UART/UDP bridge and runtime stats
 - `main/encoder.c`: GPIO ISR edge counting and wheel-kinematics computation
-- `main/mavlink_odometry.c`: MAVLink `ODOMETRY` packaging via generated C library API
+- `main/mavlink_wheel_distance.c`: MAVLink `WHEEL_DISTANCE` packaging via generated C library API
 - `main/svea_config.h`: pin/baud/kinematics configuration macros
 - `components/mavlink`: generated MAVLink C headers used for packing/transmission
 - `components/mavlink_repo`: upstream MAVLink repo clone (message definitions + `pymavlink` generator)
@@ -143,7 +143,7 @@ Set `idf.port` in VS Code user/workspace settings to your preferred value:
 - Opens UDP port `14550` (MAVLink bridge):
   - UDP -> UART: forwards datagrams to PX4 UART
   - UART -> UDP: forwards PX4 MAVLink bytes back to last UDP sender
-- Publishes encoder-derived MAVLink `ODOMETRY` into PX4 UART at 50 Hz
+- Publishes encoder-derived MAVLink `WHEEL_DISTANCE` into PX4 UART at 50 Hz
 
 ## Wiring
 
@@ -174,11 +174,10 @@ Verify link state:
 mavlink status
 ```
 
-Verify odometry messages are entering PX4 uORB (topic name depends on PX4 version/build):
+Verify bridge link status:
 
 ```sh
-listener vehicle_odometry 5
-listener vehicle_visual_odometry 5
+mavlink status
 ```
 
 On QGroundControl/companion side connect UDP to:
@@ -186,18 +185,15 @@ On QGroundControl/companion side connect UDP to:
 
 ## Encoder to PX4 Integration
 
-Encoder ticks are processed on ESP32 and emitted as MAVLink `ODOMETRY` on the same UART already used for PX4 MAVLink input.
+Encoder ticks are processed on ESP32 and emitted as MAVLink `WHEEL_DISTANCE` on the same UART already used for PX4 MAVLink input.
 
-- Message: `ODOMETRY` (ID `331`, MAVLink 2 framing)
-- Estimator type: `MAV_ESTIMATOR_TYPE_NAIVE`
-- Velocity frame: `MAV_FRAME_BODY_FRD`
-- Encoded velocity:
-  - `vx = linear_mps`
-  - `vy = 0`
-  - `vz = 0`
-  - `yawspeed = yaw_rate_rps`
+- Message: `WHEEL_DISTANCE` (ID `9000`, MAVLink 2 framing)
+- `count = 2`
+- `distance[0] = left cumulative distance (m)`
+- `distance[1] = right cumulative distance (m)`
+- Forward wheel rotation increases distance, reverse decreases distance
 
-Pose fields are intentionally published as `NaN` so PX4 treats this as velocity-only odometry input.
+For localization stacks running in ROS or a companion computer, consume `WHEEL_DISTANCE` directly on the MAVLink link.
 
 ## Encoder Emulation (No Hardware Encoder Needed)
 
@@ -213,5 +209,5 @@ These synthetic ticks go through the exact same pipeline as real ticks:
 
 1. tick counters
 2. wheel kinematics
-3. MAVLink `ODOMETRY` packing
+3. MAVLink `WHEEL_DISTANCE` packing
 4. UART TX into PX4
