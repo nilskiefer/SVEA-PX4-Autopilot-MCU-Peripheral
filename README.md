@@ -76,11 +76,21 @@ Build inside the dev container:
 ```bash
 idf.py build
 ```
+or
+```bash
+docker compose run --rm idf zsh -lc "idf.py build"
+```
 
 Flash from the host terminal (outside the dev container):
 
+in build
 ```bash
-(cd build && python -m esptool --chip esp32c6 --port /dev/cu.usbmodem11201 --baud 460800 write-flash @flash_args)
+cd build
+```
+
+
+```bash
+(python -m esptool --chip esp32c6 --port /dev/cu.usbmodem11201 --baud 460800 write-flash @flash_args)
 ```
 
 Monitor serial output from host:

@@ -12,8 +12,7 @@
 
 static bridge_state_t s_state;
 
-static void cb_wifi_sta_got_ip(void *pv_parameter)
-{
+static void cb_wifi_sta_got_ip(void *pv_parameter) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)pv_parameter;
 
     if (event) {
@@ -23,8 +22,7 @@ static void cb_wifi_sta_got_ip(void *pv_parameter)
     }
 }
 
-static void cb_wifi_sta_disconnected(void *pv_parameter)
-{
+static void cb_wifi_sta_disconnected(void *pv_parameter) {
     wifi_event_sta_disconnected_t *disc = (wifi_event_sta_disconnected_t *)pv_parameter;
 
     if (disc) {
@@ -34,9 +32,8 @@ static void cb_wifi_sta_disconnected(void *pv_parameter)
     }
 }
 
-void app_main(void)
-{
-    for (int i = 10; i > 0; i--) {
+void app_main(void) {
+    for (int i = 5; i > 0; i--) {
         ESP_LOGI(SVEA_TAG, "BOOT DELAY: starting in %d s", i);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
