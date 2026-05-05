@@ -1,9 +1,16 @@
 idf_component_register(
     SRCS
         "main.c"
-        "bridge_io.c"
-        "encoder.c"
-        "peripheral_frame.c"
+        "core/peripheral_context.c"
+        "transport/peripheral_uart.c"
+        "protocol/peripheral_protocol.c"
+        "topics/peripheral_topics.c"
+        "modules/encoder/encoder_module.c"
     INCLUDE_DIRS
         "."
+        "core"
+        "transport"
+        "protocol"
+        "topics"
+        "modules/encoder"
 )

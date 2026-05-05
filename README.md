@@ -1,31 +1,84 @@
-# SVEA-PX4-MODULE-ENCODER
+# SVEA-PX4-Autopilot-MCU-Peripheral
 
-ESP32-C6 firmware for a pure UART encoder peripheral for PX4.
+ESP32-C6 firmware for a SVEA peripheral MCU that publishes PX4-uORB-aligned data over UART.
 
-## What Is Included
+The current implemented example module is `encoder` (publishes wheel topics).
 
-- ESP-IDF project for ESP32-C6
-- Encoder edge counting on 2 GPIO inputs
-- Periodic wheel distance publishing to PX4 over UART using a dedicated framed protocol (CRC protected)
+## Architecture
 
-## Source Layout
+The project is intentionally split into layers:
 
-- `main/main.c`: startup and task orchestration
-- `main/bridge_io.c`: UART initialization and shared utility functions
-- `main/encoder.c`: GPIO ISR edge counting and wheel-kinematics computation
-- `main/peripheral_frame.c`: UART frame packing + CRC16
-- `main/peripheral_frame.h`: peripheral frame contract
-- `main/svea_config.h`: pin/baud/kinematics configuration macros
+- `main/core/`
+  - Runtime context and shared counters/locks.
+  - `peripheral_context.[ch]`
+- `main/transport/`
+  - Raw UART setup and byte writes only.
+  - `peripheral_uart.[ch]`
+- `main/protocol/`
+  - Frame format, CRC, and topic-id multiplexing.
+  - `peripheral_protocol.[ch]`
+- `main/topics/`
+  - uORB-aligned topic payload APIs (typed publish helpers).
+  - `peripheral_topics.[ch]`
+- `main/modules/`
+  - Feature modules that produce data.
+  - `encoder/encoder_module.[ch]`
+- `main/main.c`
+  - Boot, wiring, and module startup.
+
+This keeps modules independent from framing/UART details.
+
+## Current Wire Protocol (compatible with PX4 `svea_peripheral_mcu`)
+
+Frame bytes:
+
+- `magic0` = `0x53` (`'S'`)
+- `magic1` = `0x45` (`'E'`)
+- `version` = `2`
+- `topic_id` = `uint8`
+- `payload_len` = `uint8`
+- `payload[payload_len]`
+- `crc16_ccitt` over `[version, topic_id, payload_len, payload...]` (little-endian in frame)
+
+Current topic IDs:
+
+- `1` -> `wheel_distance`
+- `2` -> `wheel_encoders`
+
+## Encoder Example (Reference Module)
+
+`modules/encoder/encoder_module.c` shows the expected pattern for adding modules:
+
+1. Collect or synthesize sensor data.
+2. Populate a typed payload struct from `topics/peripheral_topics.h`.
+3. Publish through `peripheral_topic_publish_*()`.
+4. Fail hard on publish errors.
+
+It publishes both:
+
+- `wheel_distance` payload (`sequence`, `time_ms`, left/right distance)
+- `wheel_encoders` payload (`sequence`, `time_ms`, wheel speeds/angles)
+
+## How To Add A New Module
+
+1. Create `main/modules/<name>/<name>_module.[ch]`.
+2. Add topic payload + publish function to `main/topics/peripheral_topics.[ch]`.
+3. Assign a new `topic_id` in `main/protocol/peripheral_protocol.h`.
+4. Use `peripheral_protocol_send()` only from topic-layer helpers.
+5. Start module from `main/main.c`.
+6. Add new source file(s) in `main/CMakeLists.txt`.
+
+Note: This repo is protocol/uORB-aligned on MCU side. PX4 still needs matching decode+publish mapping for any brand-new topic class.
 
 ## Build
 
-### In dev container / Docker Compose
+### Docker Compose
 
 ```bash
 docker compose run --rm idf zsh -lc "idf.py build"
 ```
 
-### First-time target setup (or after changing target)
+### Set target (first time)
 
 ```bash
 docker compose run --rm idf zsh -lc "idf.py set-target esp32c6"
@@ -33,60 +86,32 @@ docker compose run --rm idf zsh -lc "idf.py set-target esp32c6"
 
 ## Flash
 
-### Recommended (host esptool)
-
 Build first:
 
 ```bash
 docker compose run --rm idf zsh -lc "idf.py build"
 ```
 
-Then flash from host using generated flash args:
+Then flash from host:
 
 ```bash
 cd build
 python -m esptool --chip esp32c6 --port /dev/cu.usbmodem11201 --baud 460800 write-flash @flash_args
 ```
 
-Replace port with your device path.
+## Wiring (PX4 Clicker4 STM32F7)
 
-### Alternative (inside IDF environment with direct USB access)
-
-```bash
-idf.py -p /dev/ttyUSB0 flash monitor
-```
-
-(or `/dev/ttyACM0`, or `COMx` on Windows)
-
-## Runtime Behavior
-
-- No Wi-Fi, no UDP gateway, no captive portal
-- UART-only peripheral behavior
-- Sends framed wheel distance samples to PX4 at configured publish rate
-
-Frame payload fields:
-
-- `sequence` (`uint32`)
-- `time_ms` (`uint32`)
-- `left_distance_m` (`float32`)
-- `right_distance_m` (`float32`)
-
-## Wiring
-
-PX4 side (Clicker4 STM32F7):
-- `PB6` (`USART1_TX`, `/dev/ttyS0`) -> ESP32-C6 RX
-- `PB7` (`USART1_RX`, `/dev/ttyS0`) <- ESP32-C6 TX
+- PX4 `PB6` (`USART1_TX`, `/dev/ttyS0`) -> ESP RX (`D7` / GPIO17)
+- PX4 `PB7` (`USART1_RX`, `/dev/ttyS0`) <- ESP TX (`D6` / GPIO16)
 - Common GND
 - 3.3V logic only
 
-Do not use `PA2/PA3` for this peripheral; that port is used by the NSH serial console.
+Do not use `PA2/PA3` for this peripheral link (NSH console path).
 
-ESP32-C6 defaults in `main/svea_config.h`:
-- UART TX GPIO `16` (`D6` on XIAO ESP32C6)
-- UART RX GPIO `17` (`D7` on XIAO ESP32C6)
-- Encoder GPIOs `4` (left), `5` (right)
+## Configuration
 
-## Encoder Emulation
+See `main/svea_config.h`:
 
-`main/svea_config.h`:
-- `ENCODER_EMULATION_ENABLE 1` to enable synthetic ticks for bringup.
+- UART config (port/pins/baud/buffer sizes)
+- Encoder GPIO and kinematic constants
+- `ENCODER_EMULATION_ENABLE` (synthetic encoder ticks for bring-up)
