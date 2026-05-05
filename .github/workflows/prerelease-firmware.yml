@@ -1,0 +1,64 @@
+name: Firmware Prerelease
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-prerelease:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build firmware
+        run: |
+          . /opt/esp/idf/export.sh
+          idf.py set-target esp32c6
+          idf.py build
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp build/svea_px4_module_encoder.elf release-artifacts/
+          cp build/svea_px4_module_encoder.bin release-artifacts/
+          cp build/svea_px4_module_encoder.map release-artifacts/
+          cp build/bootloader/bootloader.bin release-artifacts/
+          cp build/partition_table/partition-table.bin release-artifacts/
+          cp build/flash_args release-artifacts/
+          cp build/flasher_args.json release-artifacts/
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          path: release-artifacts/*
+
+      - name: Prepare release metadata
+        run: |
+          echo "TAG_NAME=prerelease-${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=Firmware prerelease ${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Publish prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.RELEASE_NAME }}
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            release-artifacts/svea_px4_module_encoder.elf
+            release-artifacts/svea_px4_module_encoder.bin
+            release-artifacts/svea_px4_module_encoder.map
+            release-artifacts/bootloader.bin
+            release-artifacts/partition-table.bin
+            release-artifacts/flash_args
+            release-artifacts/flasher_args.json
