@@ -6,7 +6,7 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/task.h"
-#include "mavlink_wheel_distance.h"
+#include "peripheral_frame.h"
 #include "svea_common.h"
 #include "svea_config.h"
 #include "bridge_io.h"
@@ -14,6 +14,7 @@
 typedef struct {
     bridge_state_t *state;
     uint32_t emulate_start_ms;
+    uint32_t sequence;
     int32_t prev_left;
     int32_t prev_right;
     float emulate_left_frac_ticks;
@@ -135,8 +136,9 @@ void encoder_publish_task(void *arg)
         const double left_distance_m = (double)left * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
         const double right_distance_m = (double)right * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
 
-        mavlink_wheel_distance_sample_t sample = {
-            .time_usec = (uint64_t)now_ms() * 1000ULL,
+        peripheral_wheel_distance_sample_t sample = {
+            .sequence = task->sequence++,
+            .time_ms = now_ms(),
             .left_distance_m = left_distance_m,
             .right_distance_m = right_distance_m,
         };
@@ -145,18 +147,14 @@ void encoder_publish_task(void *arg)
             ESP_LOGE(SVEA_TAG, "uart tx lock failed");
             abort();
         }
-        int written = mavlink_wheel_distance_send_uart(
-            BRIDGE_UART_NUM,
-            ENCODER_MAV_SYS_ID,
-            ENCODER_MAV_COMP_ID,
-            &sample);
+        int written = peripheral_wheel_distance_send_uart(BRIDGE_UART_NUM, &sample);
         if (xSemaphoreGive(state->uart_tx_lock) != pdTRUE) {
             ESP_LOGE(SVEA_TAG, "uart tx unlock failed");
             abort();
         }
 
         if (written <= 0) {
-            ESP_LOGE(SVEA_TAG, "Failed to publish wheel distance over MAVLink");
+            ESP_LOGE(SVEA_TAG, "Failed to publish wheel distance peripheral frame");
             abort();
         }
 

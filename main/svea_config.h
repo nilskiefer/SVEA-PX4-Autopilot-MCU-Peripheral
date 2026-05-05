@@ -28,7 +28,3 @@
 /* Emulation motion profile is intentionally hardcoded in encoder.c for
  * communication/integration bringup validation.
  */
-
-/* MAVLink identity of encoder source injected towards PX4. */
-#define ENCODER_MAV_SYS_ID 42
-#define ENCODER_MAV_COMP_ID 197 /* Encoder source component ID */
