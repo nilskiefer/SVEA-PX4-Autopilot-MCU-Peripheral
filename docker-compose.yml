@@ -9,4 +9,8 @@ services:
     stdin_open: true
     tty: true
     init: true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     command: zsh -lc "sleep infinity"
