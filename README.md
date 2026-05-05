@@ -74,10 +74,12 @@ Frame payload fields:
 ## Wiring
 
 PX4 side (Clicker4 STM32F7):
-- `PA2` (`USART2_TX`) -> ESP32-C6 RX
-- `PA3` (`USART2_RX`) <- ESP32-C6 TX
+- `PB6` (`USART1_TX`, `/dev/ttyS0`) -> ESP32-C6 RX
+- `PB7` (`USART1_RX`, `/dev/ttyS0`) <- ESP32-C6 TX
 - Common GND
 - 3.3V logic only
+
+Do not use `PA2/PA3` for this peripheral; that port is used by the NSH serial console.
 
 ESP32-C6 defaults in `main/svea_config.h`:
 - UART TX GPIO `16` (`D6` on XIAO ESP32C6)

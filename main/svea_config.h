@@ -2,9 +2,9 @@
 
 #include "driver/uart.h"
 
-/* ESP32-C6 UART connected to PX4 USART2:
- *   PX4 PA2 (TX) -> ESP RX
- *   PX4 PA3 (RX) <- ESP TX
+/* ESP32-C6 UART connected to PX4 USART1 (/dev/ttyS0):
+ *   PX4 PB6 (USART1_TX) -> ESP RX
+ *   PX4 PB7 (USART1_RX) <- ESP TX
  */
 #define BRIDGE_UART_NUM UART_NUM_1
 #define BRIDGE_UART_TX_GPIO 16 /* XIAO D6 */
