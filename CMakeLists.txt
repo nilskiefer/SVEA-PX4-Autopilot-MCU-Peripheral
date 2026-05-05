@@ -6,7 +6,6 @@ cmake_minimum_required(VERSION 3.16)
 set(COMPONENT_DIRS
     "$ENV{IDF_PATH}/components"
     "main"
-    "components/esp32-wifi-manager"
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
