@@ -16,3 +16,5 @@ __pycache__/
 .venv
 sdkconfig.old
 components/mavlink/
+.act-cache/
+
