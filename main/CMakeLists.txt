@@ -6,5 +6,4 @@ idf_component_register(
         "peripheral_frame.c"
     INCLUDE_DIRS
         "."
-        "../components"
 )

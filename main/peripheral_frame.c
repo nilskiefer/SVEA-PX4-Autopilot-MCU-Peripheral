@@ -7,10 +7,10 @@
 #include "esp_log.h"
 #include "svea_common.h"
 
-static const uint8_t FRAME_MAGIC0 = 0x53; // 'S'
-static const uint8_t FRAME_MAGIC1 = 0x45; // 'E'
-static const uint8_t FRAME_VERSION = 1;
-static const uint8_t FRAME_PAYLOAD_LEN = 16;
+#define FRAME_MAGIC0 0x53U
+#define FRAME_MAGIC1 0x45U
+#define FRAME_VERSION 1U
+#define FRAME_PAYLOAD_LEN 16U
 
 typedef struct __attribute__((packed)) {
     uint32_t sequence;
