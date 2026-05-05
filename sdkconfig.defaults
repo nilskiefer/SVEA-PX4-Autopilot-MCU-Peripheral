@@ -2,3 +2,9 @@
 # Partitioning
 # CONFIG_PARTITION_TABLE_SINGLE_APP is not set
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# UART-only peripheral firmware: no Wi-Fi stack.
+# CONFIG_ESP_WIFI_ENABLED is not set
+# CONFIG_ESP_WIFI_SOFTAP_SUPPORT is not set
+# CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
+# CONFIG_ESP_WIFI_REMOTE_ENABLED is not set
