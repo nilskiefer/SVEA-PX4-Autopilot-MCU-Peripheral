@@ -47,8 +47,9 @@ jobs:
 
       - name: Prepare release metadata
         run: |
-          echo "TAG_NAME=prerelease-${GITHUB_SHA::12}" >> "$GITHUB_ENV"
-          echo "RELEASE_NAME=Firmware prerelease ${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+          SHORT_SHA="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          echo "TAG_NAME=prerelease-$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=Firmware prerelease $SHORT_SHA" >> "$GITHUB_ENV"
 
       - name: Publish prerelease
         uses: softprops/action-gh-release@v2
