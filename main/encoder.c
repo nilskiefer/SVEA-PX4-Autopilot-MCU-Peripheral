@@ -104,9 +104,11 @@ void encoder_gpio_init(bridge_state_t *state)
 void encoder_publish_task(void *arg)
 {
     bridge_state_t *state = (bridge_state_t *)arg;
+    const float two_pi = 2.0f * (float)M_PI;
     const float wheel_circ = (float)M_PI * ENCODER_WHEEL_DIAM_M;
     const float meters_per_tick = wheel_circ / ENCODER_TICKS_PER_REV;
     const float dt_s = (float)ENCODER_PUBLISH_MS / 1000.0f;
+    const float radians_per_tick = (two_pi / ENCODER_TICKS_PER_REV) * ENCODER_SPEED_SCALE;
     encoder_task_state_t *task = &s_encoder_task_state;
     task->state = state;
     task->emulate_start_ms = now_ms();
@@ -130,34 +132,48 @@ void encoder_publish_task(void *arg)
         task->prev_left = left;
         task->prev_right = right;
 
-        (void)d_left;
-        (void)d_right;
-
         const double left_distance_m = (double)left * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
         const double right_distance_m = (double)right * (double)meters_per_tick * (double)ENCODER_SPEED_SCALE;
+        const float right_speed_rad_s = ((float)d_right * radians_per_tick) / dt_s;
+        const float left_speed_rad_s = ((float)d_left * radians_per_tick) / dt_s;
+        const float right_angle_rad = (float)right * radians_per_tick;
+        const float left_angle_rad = (float)left * radians_per_tick;
+        const uint32_t sequence = task->sequence++;
+        const uint32_t time_ms = now_ms();
 
         peripheral_wheel_distance_sample_t sample = {
-            .sequence = task->sequence++,
-            .time_ms = now_ms(),
+            .sequence = sequence,
+            .time_ms = time_ms,
             .left_distance_m = left_distance_m,
             .right_distance_m = right_distance_m,
+        };
+
+        peripheral_wheel_encoders_sample_t encoders = {
+            .sequence = sequence,
+            .time_ms = time_ms,
+            .right_wheel_speed_rad_s = right_speed_rad_s,
+            .left_wheel_speed_rad_s = left_speed_rad_s,
+            .right_wheel_angle_rad = right_angle_rad,
+            .left_wheel_angle_rad = left_angle_rad,
         };
 
         if (xSemaphoreTake(state->uart_tx_lock, portMAX_DELAY) != pdTRUE) {
             ESP_LOGE(SVEA_TAG, "uart tx lock failed");
             abort();
         }
-        int written = peripheral_wheel_distance_send_uart(BRIDGE_UART_NUM, &sample);
+        int written_distance = peripheral_wheel_distance_send_uart(BRIDGE_UART_NUM, &sample);
+        int written_encoders = peripheral_wheel_encoders_send_uart(BRIDGE_UART_NUM, &encoders);
         if (xSemaphoreGive(state->uart_tx_lock) != pdTRUE) {
             ESP_LOGE(SVEA_TAG, "uart tx unlock failed");
             abort();
         }
 
-        if (written <= 0) {
-            ESP_LOGE(SVEA_TAG, "Failed to publish wheel distance peripheral frame");
+        if (written_distance <= 0 || written_encoders <= 0) {
+            ESP_LOGE(SVEA_TAG, "Failed to publish peripheral frames (distance=%d encoders=%d)",
+                     written_distance, written_encoders);
             abort();
         }
 
-        state->encoder_to_px4_pkts++;
+        state->encoder_to_px4_pkts += 2U;
     }
 }
