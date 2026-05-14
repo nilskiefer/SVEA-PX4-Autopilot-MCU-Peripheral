@@ -21,8 +21,12 @@
 #define ENCODER_PUBLISH_MS 20
 #define ENCODER_SPEED_SCALE 0.93f
 
-/* Set to 1 to bypass GPIO encoder edges and inject synthetic wheel ticks. */
-#define ENCODER_EMULATION_ENABLE 1
+/* Set to 1 to force emulation and ignore runtime GPIO activity detection. */
+#define ENCODER_EMULATION_ENABLE 0
+/* Probe window at boot before deciding emulation mode. */
+#define ENCODER_ACTIVITY_PROBE_MS 300
+/* While emulating, switch to real encoder mode if pin activity is detected. */
+#define ENCODER_AUTO_SWITCH_TO_REAL_ENABLE 1
 /* Emulation motion profile is intentionally hardcoded in encoder.c for
  * communication/integration bringup validation.
  */

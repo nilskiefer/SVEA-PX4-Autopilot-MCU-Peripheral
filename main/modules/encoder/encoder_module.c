@@ -1,5 +1,6 @@
 #include "encoder_module.h"
 
+#include <stdbool.h>
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,7 +13,6 @@
 #include "svea_common.h"
 #include "svea_config.h"
 
-#if !ENCODER_EMULATION_ENABLE
 static encoder_module_t *s_isr_module = NULL;
 
 static void IRAM_ATTR encoder_gpio_isr(void *arg)
@@ -32,7 +32,6 @@ static void IRAM_ATTR encoder_gpio_isr(void *arg)
     }
     portEXIT_CRITICAL_ISR(&module->ticks_lock);
 }
-#endif
 
 static void encoder_emulate_profile(float t_s, float *linear_mps, float *yaw_rate_rps)
 {
@@ -66,6 +65,17 @@ static void encoder_emulate_ticks(encoder_module_t *module, float meters_per_tic
     portEXIT_CRITICAL(&module->ticks_lock);
 }
 
+static bool encoder_gpio_activity_detected(encoder_module_t *module)
+{
+    const int left_level = gpio_get_level(ENCODER_LEFT_GPIO);
+    const int right_level = gpio_get_level(ENCODER_RIGHT_GPIO);
+    const bool changed = (left_level != module->last_left_level) || (right_level != module->last_right_level);
+    const bool non_zero = (left_level != 0) || (right_level != 0);
+    module->last_left_level = left_level;
+    module->last_right_level = right_level;
+    return changed || non_zero;
+}
+
 static void encoder_publish_task(void *arg)
 {
     encoder_module_t *module = (encoder_module_t *)arg;
@@ -78,9 +88,17 @@ static void encoder_publish_task(void *arg)
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(ENCODER_PUBLISH_MS));
 
-#if ENCODER_EMULATION_ENABLE
-        encoder_emulate_ticks(module, meters_per_tick, dt_s);
+        if (module->use_emulation) {
+#if ENCODER_AUTO_SWITCH_TO_REAL_ENABLE
+            if (!module->force_emulation && encoder_gpio_activity_detected(module)) {
+                module->use_emulation = false;
+                ESP_LOGI(SVEA_TAG, "encoder activity detected, switching from emulation to real GPIO inputs");
+            }
 #endif
+            if (module->use_emulation) {
+                encoder_emulate_ticks(module, meters_per_tick, dt_s);
+            }
+        }
 
         int32_t left_ticks = 0;
         int32_t right_ticks = 0;
@@ -137,16 +155,13 @@ void encoder_module_init(encoder_module_t *module, peripheral_context_t *ctx)
     module->ctx = ctx;
     module->ticks_lock = (portMUX_TYPE)portMUX_INITIALIZER_UNLOCKED;
     module->emulate_start_ms = peripheral_now_ms();
-
-#if ENCODER_EMULATION_ENABLE
-    ESP_LOGW(SVEA_TAG, "encoder emulation enabled (no GPIO ISR)");
-    return;
-#else
+    module->force_emulation = (ENCODER_EMULATION_ENABLE != 0);
+    module->use_emulation = module->force_emulation;
     const gpio_config_t cfg = {
         .pin_bit_mask = (1ULL << ENCODER_LEFT_GPIO) | (1ULL << ENCODER_RIGHT_GPIO),
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,
         .intr_type = GPIO_INTR_ANYEDGE,
     };
 
@@ -155,8 +170,30 @@ void encoder_module_init(encoder_module_t *module, peripheral_context_t *ctx)
     s_isr_module = module;
     SVEA_CHECK(gpio_isr_handler_add(ENCODER_LEFT_GPIO, encoder_gpio_isr, (void *)(uintptr_t)ENCODER_LEFT_GPIO));
     SVEA_CHECK(gpio_isr_handler_add(ENCODER_RIGHT_GPIO, encoder_gpio_isr, (void *)(uintptr_t)ENCODER_RIGHT_GPIO));
-    ESP_LOGI(SVEA_TAG, "encoder GPIO ISR up: left=%d right=%d", ENCODER_LEFT_GPIO, ENCODER_RIGHT_GPIO);
-#endif
+    module->last_left_level = gpio_get_level(ENCODER_LEFT_GPIO);
+    module->last_right_level = gpio_get_level(ENCODER_RIGHT_GPIO);
+
+    if (!module->force_emulation) {
+        bool activity = false;
+        const int probe_loops = ENCODER_ACTIVITY_PROBE_MS / ENCODER_PUBLISH_MS;
+
+        for (int i = 0; i < probe_loops; i++) {
+            if (encoder_gpio_activity_detected(module)) {
+                activity = true;
+                break;
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(ENCODER_PUBLISH_MS));
+        }
+
+        module->use_emulation = !activity;
+    }
+
+    ESP_LOGI(SVEA_TAG,
+             "encoder GPIO ISR up: left=%d right=%d mode=%s",
+             ENCODER_LEFT_GPIO,
+             ENCODER_RIGHT_GPIO,
+             module->use_emulation ? "emulation" : "real");
 }
 
 void encoder_module_start(encoder_module_t *module)

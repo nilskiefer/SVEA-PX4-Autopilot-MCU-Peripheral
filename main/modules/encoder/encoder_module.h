@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "peripheral_context.h"
@@ -15,6 +16,10 @@ typedef struct {
     int32_t prev_right_ticks;
     float emulate_left_frac_ticks;
     float emulate_right_frac_ticks;
+    bool use_emulation;
+    bool force_emulation;
+    int last_left_level;
+    int last_right_level;
 } encoder_module_t;
 
 void encoder_module_init(encoder_module_t *module, peripheral_context_t *ctx);
