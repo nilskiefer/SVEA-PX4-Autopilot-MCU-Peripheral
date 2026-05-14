@@ -96,7 +96,13 @@ Then flash from host:
 
 ```bash
 cd build
-python -m esptool --chip esp32c6 --port /dev/cu.usbmodem11201 --baud 460800 write-flash @flash_args
+python -m esptool --chip esp32c6 --port /dev/serial/by-id/*Espressif* --baud 460800 write-flash @flash_args
+cd ..
+```
+
+## Monitor 
+```bash
+pio device monitor --port /dev/serial/by-id/*Espressif* --baud 115200
 ```
 
 ## Wiring (PX4 Clicker4 STM32F7)
