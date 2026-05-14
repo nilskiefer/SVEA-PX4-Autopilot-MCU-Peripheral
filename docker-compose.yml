@@ -3,9 +3,9 @@ services:
     build:
       context: .devcontainer
       dockerfile: Dockerfile
-    working_dir: /workspaces/SVEA-PX4-MODULE-ENCODER
+    working_dir: /workspaces/SVEA-PX4-Autopilot-MCU-Peripheral
     volumes:
-      - .:/workspaces/SVEA-PX4-MODULE-ENCODER
+      - .:/workspaces/SVEA-PX4-Autopilot-MCU-Peripheral
     stdin_open: true
     tty: true
     init: true
