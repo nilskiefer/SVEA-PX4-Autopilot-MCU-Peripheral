@@ -70,17 +70,29 @@ It publishes both:
 
 Note: This repo is protocol/uORB-aligned on MCU side. PX4 still needs matching decode+publish mapping for any brand-new topic class.
 
+## Host Python venv
+
+Create a local venv for host-side tools (`esptool`, `pio`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install esptool platformio
+```
+
+You should run host-side commands in this active venv. Exit with:
+
+```bash
+deactivate
+```
+
 ## Flash
 
 Build first:
 
 ```bash
 docker compose run --rm idf zsh -lc "idf.py build"
-```
-
-Create a venv for python and run (this can be done via `F1` + `Select Interpreter`)
-```bash
-pip install esptool
 ```
 
 Then flash from host:
