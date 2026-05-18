@@ -92,6 +92,11 @@ Build first:
 docker compose run --rm idf zsh -lc "idf.py build"
 ```
 
+Create a venv for python and run (this can be done via `F1` + `Select Interpreter`)
+```bash
+pip install esptool
+```
+
 Then flash from host:
 
 ```bash
