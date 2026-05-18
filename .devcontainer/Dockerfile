@@ -1,4 +1,4 @@
-FROM espressif/idf:latest
+FROM espressif/idf:v6.0.1
 
 SHELL ["/bin/bash", "-lc"]
 
