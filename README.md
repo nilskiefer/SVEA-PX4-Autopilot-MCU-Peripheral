@@ -78,11 +78,6 @@ Note: This repo is protocol/uORB-aligned on MCU side. PX4 still needs matching d
 docker compose run --rm idf zsh -lc "idf.py build"
 ```
 
-### Set target (first time)
-
-```bash
-docker compose run --rm idf zsh -lc "idf.py set-target esp32c6"
-```
 
 ## Flash
 
@@ -104,6 +99,15 @@ cd build
 python -m esptool --chip esp32c6 --port /dev/serial/by-id/*Espressif* --baud 460800 write-flash @flash_args
 cd ..
 ```
+
+
+
+##### May be needed, set target (first time)
+
+```bash
+docker compose run --rm idf zsh -lc "idf.py set-target esp32c6"
+```
+
 
 ## Monitor 
 ```bash
