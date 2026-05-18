@@ -70,15 +70,6 @@ It publishes both:
 
 Note: This repo is protocol/uORB-aligned on MCU side. PX4 still needs matching decode+publish mapping for any brand-new topic class.
 
-## Build
-
-### Docker Compose
-
-```bash
-docker compose run --rm idf zsh -lc "idf.py build"
-```
-
-
 ## Flash
 
 Build first:
